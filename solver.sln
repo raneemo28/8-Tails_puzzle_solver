@@ -1,0 +1,345 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.IO;
+using System.Runtime.CompilerServices;
+
+//note : i write the original code then i did optimize it using AI tools 
+namespace ConsoleApp2
+{
+    public partial class Node 
+    {
+        private static readonly Dictionary<char, (int row, int col)> goal_positions = new Dictionary<char, (int row, int col)>
+        {
+            { '1', (0, 0) }, { '2', (0, 1) }, { '3', (0, 2) },
+            { '4', (1, 0) }, { '5', (1, 1) }, { '6', (1, 2) },
+            { '7', (2, 0) }, { '8', (2, 1) }, { ' ', (2, 2) } 
+        };
+        public char[,] State { get; } 
+        public Node Parent { get; } 
+        public string Action { get; } 
+        public int GCost { get; } 
+        public int HCost { get; } 
+        public int FCost { get; } 
+        public Node(char[,] state, Node parent, string action)
+        {
+            this.State = CopyState(state);
+            this.Parent = parent;
+            this.Action = action;
+            if(parent == null)
+            {
+                this.GCost = 0 ;
+            }
+            else
+            { 
+              this.GCost = parent.GCost + 1;
+            }
+            this.HCost = CalculateManhattanDistance();
+            this.FCost = GCost + HCost;
+        }
+        private char[,] CopyState(char[,] original)
+        {
+            if (original == null) return null;
+            int rows = original.GetLength(0);
+            int cols = original.GetLength(1);
+            char[,] copy = new char[rows, cols];
+            Array.Copy(original, copy, original.Length);
+            return copy;
+        }
+        public int CalculateManhattanDistance()
+        {
+            int totalDistance = 0;
+            int numRows = State.GetLength(0);
+            int numCols = State.GetLength(1);
+            for (int i = 0; i < numRows; i++)
+            {
+                for (int j = 0; j < numCols; j++)
+                {
+                    char tile = State[i, j];
+                    if (goal_positions.TryGetValue(tile, out (int goalRow, int goalCol) goalPos))
+                    {
+                        int distance = Math.Abs(i - goalPos.goalRow) + Math.Abs(j - goalPos.goalCol);
+                        totalDistance += distance;
+                    }
+                }
+            }
+            return totalDistance;
+        }
+        public string GetStateKey()
+        {
+            if (State == null) return null;
+
+            return GetStateKeyFromMatrix(State); 
+        }
+        public static bool AreStatesEqual(char[,] arr1, char[,] arr2)
+        {
+            if (arr1 == null || arr2 == null) return arr1 == arr2;
+            if (arr1.GetLength(0) != arr2.GetLength(0) || arr1.GetLength(1) != arr2.GetLength(1)) return false;
+            int rows = arr1.GetLength(0);
+            int cols = arr1.GetLength(1);
+            for (int i = 0; i < rows; i++)
+            {
+                for (int j = 0; j < cols; j++)
+                {
+                    if (arr1[i, j] != arr2[i, j])
+                    {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+        public static string GetStateKeyFromMatrix(char[,] matrix)
+        {
+            if (matrix == null) return null;
+
+            int rows = matrix.GetLength(0);
+            int cols = matrix.GetLength(1);
+            StringBuilder sb = new StringBuilder(); 
+
+            for (int i = 0; i < rows; i++)
+            {
+                for (int j = 0; j < cols; j++)
+                {
+                    sb.Append(matrix[i, j]);
+                }
+            }
+            return sb.ToString();
+        }
+        public void PrintState()
+        {
+            if (State == null)
+            {
+                Console.WriteLine("State is null.");
+                return;
+            }
+
+            int rows = State.GetLength(0);
+            int cols = State.GetLength(1);
+
+            for (int i = 0; i < rows; i++)
+            {
+                for (int j = 0; j < cols; j++)
+                {
+                    Console.Write(State[i, j]); Console.Write(' '); 
+                }
+                Console.WriteLine(); 
+            }
+        }
+    }
+    public class PQueueFrontier
+    {
+        private PriorityQueue<Node, int> frontier = new PriorityQueue<Node, int>();
+        private HashSet<string> frontierStates = new HashSet<string>();
+        public void Add(Node n)
+        {
+            if (n == null || n.State == null) return;
+            string stateKey = n.GetStateKey();
+            if (!frontierStates.Contains(stateKey))
+            {
+                frontier.Enqueue(n, n.FCost);
+                frontierStates.Add(stateKey);
+            }
+        }
+        public bool Empty()
+        {
+            return frontier.Count == 0;
+        }
+        public Node Remove() 
+        {
+            if (this.Empty())
+            {
+                return null;
+            }
+            Node n = frontier.Dequeue();
+            string stateKey = n.GetStateKey();
+            frontierStates.Remove(stateKey);
+            return n;
+        }
+        public bool ContainsState(char[,] s) 
+        {
+            if (s == null) return false; 
+            string stateKey = Node.GetStateKeyFromMatrix(s);
+            return frontierStates.Contains(stateKey);
+        }
+        public int Count
+        {
+            get { return frontier.Count; }
+        }
+    }
+    public class Solution
+    {
+        public List<string> Solve(char[,] puzzle, char[,] goal)
+        {
+            if (puzzle == null || goal == null)
+            {
+                Console.WriteLine("Input puzzle or goal state is null.");
+                return null;
+            }
+            if (puzzle.Rank != 2 || goal.Rank != 2 || puzzle.GetLength(0) != goal.GetLength(0) || puzzle.GetLength(1) != goal.GetLength(1))
+            {
+                Console.WriteLine("Input states must be 2D arrays of the same dimensions.");
+                return null;
+            }
+            Node startNode = new Node(puzzle, null, null); 
+            PQueueFrontier frontier = new PQueueFrontier();
+            frontier.Add(startNode); 
+            HashSet<string> exploredStates = new HashSet<string>();
+            int[] dr = { -1 , 1 ,  0 , 0  }; // Delta Row: Up, Down, Left, Right 
+            int[] dc = {  0 , 0 , -1 , 1  }; // Delta Column: Up, Down, Left, Right 
+            string[] actions = { "Up", "Down", "Left", "Right" }; 
+            int rows = puzzle.GetLength(0);
+            int cols = puzzle.GetLength(1);
+            while (!frontier.Empty())
+            {
+                Node currentNode = frontier.Remove();
+                if (Node.AreStatesEqual(currentNode.State, goal)) 
+                {
+                    List<string> path = new List<string>();
+                    Node node = currentNode;
+                    while (node.Parent != null)
+                    {
+                        path.Add(node.Action); 
+                        node = node.Parent; 
+                    }
+                    path.Reverse(); 
+                    return path; 
+                }
+                string currentStateKey = currentNode.GetStateKey();
+                exploredStates.Add(currentStateKey); 
+                int blankRow = -1, blankCol = -1;
+                bool blankFound = false;
+                for (int i = 0; i < rows; i++)
+                {
+                    for (int j = 0; j < cols; j++)
+                    {
+                        if (currentNode.State[i, j] == ' ')
+                        {
+                            blankRow = i;
+                            blankCol = j;
+                            blankFound = true;
+                            break;
+                        }
+                    }
+                    if (blankFound) break;
+                }
+                if (!blankFound) continue;
+                for (int k = 0; k < 4; k++)
+                {
+                    int newRow = blankRow + dr[k]; 
+                    int newCol = blankCol + dc[k]; 
+                    string action = actions[k];     
+                    if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < cols)
+                    {
+                        char[,] newState = SwapTiles(currentNode.State, blankRow, blankCol, newRow, newCol);
+                        Node newNode = new Node(newState, currentNode, action);
+                        string newNodeKey = newNode.GetStateKey();
+                        if (!exploredStates.Contains(newNodeKey)) 
+                        {
+                            frontier.Add(newNode); 
+                        }
+                    }
+                }
+            }
+            return null; 
+        }
+        private static char[,] SwapTiles(char[,] state, int r1, int c1, int r2, int c2)
+        {
+            int rows = state.GetLength(0);
+            int cols = state.GetLength(1);
+            char[,] newState = new char[rows, cols];
+            Array.Copy(state, newState, state.Length);
+            char temp = newState[r1, c1];
+            newState[r1, c1] = newState[r2, c2];
+            newState[r2, c2] = temp;
+
+            return newState;
+        }
+    }
+     class Reader
+    {
+        public static char[,] ReadFileTo2DCharArray(string filePath)
+        {
+            string[] lines = File.ReadAllLines(filePath);
+
+            if (lines.Length == 0)
+            {
+                Console.WriteLine("Warning: The file is empty. Returning an empty 2D array.");
+                return new char[0, 0];
+            }
+
+            int numRows = lines.Length;
+            int numCols = lines[0].Length;
+
+            if (!lines.All(line => line.Length == numCols))
+            {
+                throw new InvalidDataException("Error: All lines in the file must have the same length to be stored in a rectangular 2D char array.");
+            }
+            char[,] charArray = new char[numRows, numCols];
+
+            for (int r = 0; r < numRows; r++) 
+            {
+                for (int c = 0; c < numCols; c++) 
+                {
+                    charArray[r, c] = lines[r][c]; 
+                }
+            }
+
+            return charArray;
+        }
+    }
+    public class Program
+    {
+        public static void Main(string[] args)
+        {
+            char[,] goal = { { '1', '2', '3' },
+                             { '4', '5', '6' },
+                             { '7', '8', ' ' }
+            };
+            Console.Write("Please enter the path to your text file (e.g., input.txt): ");
+            string filePath = Console.ReadLine();
+            try
+            {
+                char[,] start = Reader.ReadFileTo2DCharArray(filePath);
+                Console.WriteLine("Starting Puzzle State:");
+                Node tempStartNode = new Node(start, null, null);
+                tempStartNode.PrintState();
+                Console.WriteLine("\nGoal State:");
+                Node tempGoalNode = new Node(goal, null, null);
+                tempGoalNode.PrintState();
+                Console.WriteLine("\nSolving...");
+                Solution solver = new Solution();
+                List<string> solutionPath = solver.Solve(start, goal);
+                if (solutionPath != null)
+                {
+                    Console.WriteLine("\nSolution Found!\nPath:");
+                    foreach (string action in solutionPath)
+                    {
+                        Console.WriteLine($"- {action}");
+                    }
+                    Console.WriteLine($"Total moves: {solutionPath.Count}");
+                }
+                else
+                {
+                    Console.WriteLine("\nNo solution found for this starting state.");
+                }
+            }
+            catch (FileNotFoundException)
+            {
+                Console.WriteLine($"\nError: The file '{filePath}' was not found.");
+                Console.WriteLine("Please ensure the file exists and the path is correct.");
+            }
+            catch (InvalidDataException ex)
+            {
+                Console.WriteLine($"\nData Error: {ex.Message}");
+                Console.WriteLine("Consider using a 'char[][]' (jagged array) if your lines have varying lengths.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"\nAn unexpected error occurred: {ex.Message}");
+            }
+            
+        }
+    }
+}
