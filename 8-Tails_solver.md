@@ -2,9 +2,11 @@ a C# implementation of classic 8-Tails solver using A* algorithem taking sum of 
 considering that the user may enter invalid input.
 input :a path to a text file include the starting state of the puzzle eg:  iput.txt
 example of what the file (input.txt) should contains : 
+
 235
 7 4
 186
+
 output : starting state, goal state ,a series of moves that the user should implement on the space to win the game , total number of moves 
 eg_1 :
 Starting Puzzle State:
