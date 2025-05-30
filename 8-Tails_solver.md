@@ -4,9 +4,7 @@ input :a path to a text file include the starting state of the puzzle eg:  iput.
 example of what the file (input.txt) should contains : 
 
 235
-
 7 4
-
 186
 
 output : starting state, goal state ,a series of moves that the user should implement on the space to win the game , total number of moves 
